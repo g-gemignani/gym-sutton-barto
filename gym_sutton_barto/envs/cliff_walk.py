@@ -1,8 +1,7 @@
-import gym
-from gym import spaces
+from gym_sutton_barto.envs.grid_world import GridWorld
 
 
-class CliffWalk(gym.Env):
+class CliffWalk(GridWorld):
     """
       World:
          0 1 2 3 4 5 6 7 8 9 10 11
@@ -13,60 +12,16 @@ class CliffWalk(gym.Env):
       Actions:
       0 = up, 1 = right, 2 = down, 3 = left
       """
-    metadata = {'render.modes': ['human']}
-
-    def __init__(self, rows=4, columns=12):
-        self.actions = {'up': 0, 'right': 1, 'down': 2, 'left': 3}
-        self.action_space = spaces.Discrete(4)
+    def __init__(self, cliff_reward=-100, goal_reward=-1, step_reward=-1):
+        super(CliffWalk, self).__init__(rows=4, columns=11)
+        self.cliff_reward = cliff_reward
         self.cliff_states = [self.coord_to_state(3, y) for y in range(1, self.columns - 1)]
-        self.columns = columns
+        self.goal_reward = goal_reward
+        self.goal_states = [self.coord_to_state(self.rows - 1, self.columns - 1)]
         self.initial_state = self.coord_to_state(3, 0)
-        self.num_actions = {value: key for key, value in self.actions.items()}
-        self.rows = rows
-        self.states = [x for x in range(self.rows * self.columns)]
-        self.target_state = self.coord_to_state(3, 11)
-
-        self.current_state = self.initial_state
-
-    def coord_to_state(self, x, y):
-        """
-        :param x: row value
-        :param y: column value
-        :return: id of the equivalent state
-        """
-        return self.columns * x + y
-
-    def render(self, mode='human'):
-        border = "----" * self.columns + "-\n"
-        board = border
-        for i in range(0, self.rows * self.columns, self.columns):
-            line = self.states[i:i + self.columns]
-            for field in line:
-                if field == self.current_state:
-                    board += "| A "
-                elif field in self.cliff_states:
-                    board += "| X "
-                elif field == self.target_state:
-                    board += "| T "
-                else:
-                    board += "|   "
-            board += "|\n"
-            board += border
-        print(board)
-
-    def reset(self):
-        """
-        resets the environment
-        """
-        self.current_state = self.initial_state
-        return self.current_state
-
-    def state_to_coord(self, state):
-        """
-        :param state: input id of state in the env
-        :return: (x, y) coord equivalent to the input state
-        """
-        return int(state / self.columns), state % self.columns
+        self.step_reward = step_reward
+        self.register_state_representation('C', 'cliff_states')
+        self.reset()
 
     def step(self, action):
         """
@@ -74,36 +29,37 @@ class CliffWalk(gym.Env):
         """
         x, y = self.state_to_coord(self.current_state)
         if action == self.actions['up']:
-            if x == 0:
-                result = self.current_state, -1, False
+            possible_next_state = self.coord_to_state(x - 1, y)
+            if x - 1 < 0:
+                result = self.current_state, self.step_reward, False
             else:
-                result = self.coord_to_state(x - 1, y), -1, False
+                result = possible_next_state, self.step_reward, False
         elif action == self.actions['right']:
-            if x == self.rows - 1:
-                result = self.initial_state, -100, False
-            elif y == self.columns - 1:
-                result = self.current_state, -1, False
+            possible_next_state = self.coord_to_state(x, y + 1)
+            if y + 1 >= self.columns:
+                result = self.current_state, self.step_reward, False
+            elif possible_next_state in self.cliff_states:
+                result = self.initial_state, self.cliff_reward, False
             else:
-                result = self.coord_to_state(x, y + 1), -1, False
+                result = possible_next_state, self.step_reward, False
 
         elif action == self.actions['left']:
-            if y == 0:
-                result = self.current_state, -1, False
+            possible_next_state = self.coord_to_state(x, y - 1)
+            if y - 1 < 0:
+                result = self.current_state, self.step_reward, False
             else:
-                result = self.coord_to_state(x, y - 1), -1, False
+                result = possible_next_state, self.step_reward, False
 
         elif action == self.actions['down']:
-            if x == 2:
-                if y == 0:
-                    result = self.current_state, -1, False
-                elif y == self.columns - 1:
-                    result = self.target_state, -1, True
-                else:
-                    result = self.initial_state, -100, False
-            elif x == self.rows - 1:
-                result = self.current_state, -1, False
+            possible_next_state = self.coord_to_state(x + 1, y)
+            if x + 1 >= self.rows:
+                result = self.current_state, self.step_reward, False
+            elif possible_next_state in self.cliff_states:
+                result = self.initial_state, self.cliff_reward, False
+            elif possible_next_state in self.goal_states:
+                result = possible_next_state, self.goal_reward, True
             else:
-                result = self.coord_to_state(x + 1, y), -1, False
+                result = possible_next_state, self.step_reward, False
 
         else:
             raise ValueError('Expected action value in {}, received {} in state {}'.
