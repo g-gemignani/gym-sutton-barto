@@ -22,8 +22,8 @@ class GridWorld(Env):
         self.goal_states = []
         self.initial_state = None
 
-        self._states_repr = {'A': 'current_state',
-                             'T': 'goal_states'}
+        self._states_repr = {'S': 'current_state',
+                             'G': 'goal_states'}
 
     def coord_to_state(self, x, y):
         """
